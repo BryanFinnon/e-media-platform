@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 244 64" role="img" aria-labelledby="title description">
+  <title id="title">E-MEDIA</title>
+  <desc id="description">Orange E mark followed by the E-MEDIA wordmark</desc>
+  <path fill="#E34A26" d="M10 7h48l-8 50H2z"/>
+  <path fill="#F2F0EB" d="M23 18h23l-2 9H31l-1 4h12l-2 8H28l-1 5h14l-2 9H15z"/>
+  <path fill="#989898" d="M62 30h19v8H62zm25-12h13l8 20 8-20h13v35h-10V32l-7 18h-8l-7-18v21H87zm48 0h28v9h-17v4h15v8h-15v5h18v9h-29zm34 0h16c13 0 21 6 21 17 0 12-8 18-22 18h-15zm11 9v17h4c7 0 10-3 10-9 0-5-3-8-10-8zm32-9h11v35h-11zm28 0h12l14 35h-12l-2-6h-13l-2 6h-11zm3 21h6l-3-10z"/>
+</svg>

@@ -1,0 +1,2 @@
+"use client";
+export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) { return <section className="page-shell page-hero"><div><p className="eyebrow">Something moved</p><h1 className="page-title">Try again.</h1></div><div className="page-intro"><p>We could not complete that request. No raw system details have been exposed.</p><button className="button button-primary" onClick={reset}>Retry →</button></div></section>; }

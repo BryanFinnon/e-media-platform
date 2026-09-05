@@ -1,0 +1,42 @@
+{
+  "name": "e-media-platform",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "node scripts/clean-sites-bundle.mjs && tsc --noEmit && next build && opennextjs-cloudflare build --skipNextBuild && wrangler deploy --dry-run --outdir .sites-worker --config wrangler.jsonc && node scripts/package-sites.mjs",
+    "start": "next start",
+    "lint": "pnpm --dir tooling exec eslint .. --config eslint.config.mjs --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "node -r ./tests/vite-windows-sandbox.cjs ./tooling/node_modules/vitest/vitest.mjs run --root . --config tooling/vitest.config.ts",
+    "test:watch": "node -r ./tests/vite-windows-sandbox.cjs ./tooling/node_modules/vitest/vitest.mjs --root . --config tooling/vitest.config.ts",
+    "test:e2e": "node ./tooling/node_modules/@playwright/test/cli.js test --config tooling/playwright.config.ts",
+    "db:types": "pnpm dlx supabase@2.75.0 gen types typescript --local > lib/supabase/database.generated.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.98.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.36.2",
+    "date-fns": "^4.1.0",
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "resend": "^6.9.3",
+    "stripe": "22.5.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@opennextjs/cloudflare": "1.20.2",
+    "@types/node": "^22.19.15",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "6.0.3",
+    "wrangler": "^4.86.0"
+  }
+}

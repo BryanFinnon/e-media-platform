@@ -1,0 +1,6 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { PageHero } from "@/components/page-hero";
+
+export const metadata: Metadata = { title: "Community", description: "A safer space for young London creatives to share, learn and connect." };
+export default function CommunityPage() { return <><PageHero eyebrow="Community preview" title={<>Make room<br />for ideas.</>}><p>A moderated space to discuss creativity, culture, opportunities and the work behind the work. Participation requires an account and acceptance of the community rules.</p></PageHero><section className="section"><div className="page-shell detail-grid"><div><p className="eyebrow">Safety by design</p></div><div><p className="detail-copy">Private information stays private. Profiles never expose email, phone, exact date of birth, precise location, bookings or client data. Reporting, blocking, moderation, data export and deletion are part of the platform architecture.</p><div className="notice">The minimum community age is a configurable policy awaiting E-MEDIA’s business and legal review.</div><Link className="button button-primary" href="/auth/signup">Create an account →</Link></div></div></section></>; }
