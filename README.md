@@ -1,3 +1,5 @@
+[![Quality checks](https://github.com/BryanFinnon/e-media-platform/actions/workflows/quality.yml/badge.svg)](https://github.com/BryanFinnon/e-media-platform/actions/workflows/quality.yml)
+
 # 🎬 E-MEDIA — Creative Studio & Youth Media Platform
 
 > A full-stack digital platform combining a creative production agency, technology services, and a youth-focused media ecosystem based in London, UK.
