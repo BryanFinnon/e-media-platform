@@ -1,6 +1,6 @@
 # E-MEDIA implementation status
 
-The current source implements the public studio site, email/password client accounts, local administrator credentials, booking requests, availability approval, itemised quotes, 50% deposits, private preview galleries and final-balance download release.
+The current source implements the public studio site, email/password client accounts, local administrator credentials, booking requests, availability approval, itemised quotes, 50% deposits, private preview galleries, final-balance download release and email-based account recovery.
 
 ## Active architecture
 

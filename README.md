@@ -7,7 +7,7 @@ E-MEDIA's creative studio website and client portal, from booking requests to pr
 ## Features
 
 - Service catalogue, portfolio, horizontal project gallery, partner and client-feedback management.
-- Email/password registration with name, phone and address; private client accounts and administrator roles.
+- Email/password registration with name, phone and address; private client accounts and administrator roles. Password recovery uses expiring, one-time email links and revokes previous sessions.
 - Availability review and itemised quotes using the service price guide. Time-based packages scale with the agreed duration; image, monthly and fixed-unit services use quantity.
 - Stripe embedded Checkout: a verified 50% deposit confirms the booking; the final 50% unlocks originals.
 - Batch photo uploads with automatically generated, reduced previews containing repeated E-MEDIA text. Clients can enlarge previews before the balance is paid.
@@ -38,7 +38,7 @@ pnpm test
 pnpm build
 ```
 
-The latest validated suite contains 81 tests. Browser journey specifications are in `tests/e2e`; the most recent workflow was also checked manually by the project owner in the isolated sandbox.
+The latest validated suite contains 100 tests. Browser journey specifications are in `tests/e2e`; the most recent workflow was also checked manually by the project owner in the isolated sandbox.
 
 ## Configuration and deployment
 

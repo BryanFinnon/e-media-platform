@@ -25,7 +25,11 @@ export async function POST(request:Request,{params}:{params:Promise<{action:stri
  if(administrator.accountId){accountId=administrator.accountId;}else{
  const row=await db.prepare('SELECT id,password_hash,password_salt FROM client_accounts WHERE email=?').bind(email).first<{id:string;password_hash:string;password_salt:string}>();const hash=await passwordHash(password,row?.password_salt??'emedia-invalid-account-dummy-salt');if(!row||!equalHashes(hash,row.password_hash))return NextResponse.json({error:'Email or password is incorrect.'},{status:401});accountId=row.id;
  }}
- const token=randomToken(),now=new Date();await db.prepare('INSERT INTO client_sessions(token_hash,account_id,expires_at,created_at) VALUES(?,?,?,?)').bind(await tokenHash(token),accountId,new Date(now.getTime()+SESSION_SECONDS*1000).toISOString(),now.toISOString()).run();
+ // A reset racing with sign-in must not create a session for the old password.
+ const credentialState=await db.prepare('SELECT password_hash,password_salt FROM client_accounts WHERE id=?').bind(accountId).first<{password_hash:string;password_salt:string}>();
+ if(!credentialState||!equalHashes(await passwordHash(password,credentialState.password_salt),credentialState.password_hash))return NextResponse.json({error:'Email or password is incorrect.'},{status:401});
+ const token=randomToken(),now=new Date();const saved=await db.prepare('INSERT INTO client_sessions(token_hash,account_id,expires_at,created_at) SELECT ?,id,?,? FROM client_accounts WHERE id=? AND password_hash=?').bind(await tokenHash(token),new Date(now.getTime()+SESSION_SECONDS*1000).toISOString(),now.toISOString(),accountId,credentialState.password_hash).run();
+ if(saved.meta?.changes!==1)return NextResponse.json({error:'Your account changed during sign-in. Please try again.'},{status:401});
  const returnTo=safeAccountReturn(body?.returnTo);const response=NextResponse.json({returnTo});response.cookies.set(SESSION_COOKIE,token,{httpOnly:true,secure:true,sameSite:'lax',path:'/',maxAge:SESSION_SECONDS});return response;
  }catch{return NextResponse.json({error:'Account service is temporarily unavailable. Please try again.'},{status:503});}
 }

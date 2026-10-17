@@ -4,6 +4,7 @@ import { z } from "zod";
 const optionalUrl = z.string().url().optional().or(z.literal(""));
 const schema = z.object({
   NEXT_PUBLIC_SITE_URL: optionalUrl,
+  ACCOUNT_RECOVERY_ORIGIN: optionalUrl,
   NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),

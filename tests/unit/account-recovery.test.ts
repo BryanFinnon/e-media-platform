@@ -1,0 +1,35 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+import {DatabaseSync} from 'node:sqlite';
+import {readFileSync,readdirSync} from 'node:fs';
+import type {D1Database,D1Statement} from '@/lib/server/sites';
+vi.mock('server-only',()=>({}));
+vi.mock('next/headers',()=>({cookies:vi.fn(),headers:vi.fn()}));
+vi.mock('@/lib/server/sites',()=>({createId:(prefix:string)=>`${prefix}_${crypto.randomUUID()}`}));
+vi.mock('@/lib/env',()=>({env:{ACCOUNT_RECOVERY_ORIGIN:'https://weareemedia.co.uk'}}));
+const mock=vi.hoisted(()=>({send:vi.fn()}));
+vi.mock('@/lib/server/email',()=>({sendTransactionalEmail:mock.send}));
+import {requestPasswordReset,resetAccountPassword} from '@/lib/server/account-recovery';
+import {passwordHash,tokenHash} from '@/lib/server/client-auth';
+import {recoveryResetSchema} from '@/lib/domain/account-recovery';
+let sqlite:DatabaseSync,db:D1Database;
+type Statement=D1Statement&{execute:()=>{meta:{changes:number}}};
+beforeEach(async()=>{
+ sqlite=new DatabaseSync(':memory:');sqlite.exec('PRAGMA foreign_keys=ON');
+ for(const name of readdirSync('drizzle').filter(n=>n.endsWith('.sql')).sort())sqlite.exec(readFileSync(`drizzle/${name}`,'utf8'));
+ db={prepare:(sql:string)=>{let values:unknown[]=[];const statement={bind:(...args:unknown[])=>{values=args;return statement;},first:async()=>sqlite.prepare(sql).get(...values as (string|number|null)[])??null,all:async()=>({results:sqlite.prepare(sql).all(...values as (string|number|null)[])}),execute:()=>({meta:{changes:Number(sqlite.prepare(sql).run(...values as (string|number|null)[]).changes)}}),run:async()=>statement.execute()} as Statement;return statement;},batch:async(statements:D1Statement[])=>{sqlite.exec('BEGIN');try{const result=statements.map(s=>(s as Statement).execute());sqlite.exec('COMMIT');return result;}catch(e){sqlite.exec('ROLLBACK');throw e;}}} as D1Database;
+ const hash=await passwordHash('old-password-123','old-salt');
+ sqlite.prepare("INSERT INTO client_accounts(id,email,full_name,phone,address,password_hash,password_salt,consent_at,created_at,role) VALUES('owner','owner@example.com','Owner','12345678','London',?,'old-salt','now','now','client')").run(hash);
+ sqlite.prepare("INSERT INTO client_sessions VALUES('old-session','owner','2099','now')").run();
+ mock.send.mockReset();mock.send.mockResolvedValue({status:'sent',id:'email-id'});
+});
+afterEach(()=>sqlite.close());
+async function issue(){await requestPasswordReset(db,'owner@example.com');const call=mock.send.mock.calls.at(-1)![0];return new URL(call.action.href).hash.slice('#token='.length);}
+it('stores only a token digest and sends a 30-minute HTTPS link to the account address',async()=>{const before=Date.now(),token=await issue();expect(token).toMatch(/^[a-f0-9]{64}$/);const row=sqlite.prepare('SELECT * FROM password_reset_tokens').get()!;expect(row.token_hash).toBe(await tokenHash(token));expect(row.token_hash).not.toBe(token);expect(new Date(String(row.expires_at)).getTime()-before).toBeGreaterThan(29*60000);expect(mock.send.mock.calls[0][0].to).toBe('owner@example.com');expect(mock.send.mock.calls[0][0].action.href).toMatch(/^https:\/\/weareemedia.co.uk\/auth\/reset-password#token=/);});
+it('does not send or create tokens for unknown emails',async()=>{await requestPasswordReset(db,'unknown@example.com');expect(mock.send).not.toHaveBeenCalled();expect(sqlite.prepare('SELECT count(*) n FROM password_reset_tokens').get()!.n).toBe(0);});
+it('resets the password once, revokes all existing sessions and keeps the account role',async()=>{const token=await issue();expect(await resetAccountPassword(db,token,'new-password-456')).toBe(true);const row=sqlite.prepare('SELECT * FROM client_accounts').get()!;expect(row.password_hash).toBe(await passwordHash('new-password-456',String(row.password_salt)));expect(row.password_hash).not.toBe(await passwordHash('old-password-123',String(row.password_salt)));expect(row.role).toBe('client');expect(sqlite.prepare('SELECT count(*) n FROM client_sessions').get()!.n).toBe(0);expect(await resetAccountPassword(db,token,'another-password-789')).toBe(false);expect(sqlite.prepare("SELECT count(*) n FROM audit_log WHERE action='account.password_reset'").get()!.n).toBe(1);});
+it('rejects expired and unknown tokens without changing the password or sessions',async()=>{const token=await issue();sqlite.prepare("UPDATE password_reset_tokens SET expires_at='2000-01-01T00:00:00.000Z'").run();expect(await resetAccountPassword(db,token,'new-password-456')).toBe(false);expect(await resetAccountPassword(db,'a'.repeat(64),'new-password-456')).toBe(false);expect(sqlite.prepare('SELECT count(*) n FROM client_sessions').get()!.n).toBe(1);});
+it('invalidates other issued links when one reset completes',async()=>{const first=await issue(),second=await issue();expect(await resetAccountPassword(db,first,'new-password-456')).toBe(true);expect(await resetAccountPassword(db,second,'another-password-789')).toBe(false);});
+it('allows only one of two concurrent attempts to consume a token',async()=>{const token=await issue();const results=await Promise.all([resetAccountPassword(db,token,'first-password-123'),resetAccountPassword(db,token,'second-password-123')]);expect(results.filter(Boolean)).toHaveLength(1);});
+it('rejects a link if the account password changed since issuance',async()=>{const token=await issue();sqlite.prepare("UPDATE client_accounts SET password_hash='changed-elsewhere'").run();expect(await resetAccountPassword(db,token,'new-password-456')).toBe(false);});
+it('removes unusable tokens when email delivery is rejected',async()=>{mock.send.mockResolvedValue({status:'failed',reason:'provider_rejected_500'});await requestPasswordReset(db,'owner@example.com');expect(sqlite.prepare('SELECT count(*) n FROM password_reset_tokens').get()!.n).toBe(0);});
+it('requires matching passwords of at least 12 characters',()=>{expect(recoveryResetSchema.safeParse({token:'a'.repeat(64),password:'short',confirmPassword:'short'}).success).toBe(false);expect(recoveryResetSchema.safeParse({token:'a'.repeat(64),password:'long-password-123',confirmPassword:'different-password'}).success).toBe(false);});
