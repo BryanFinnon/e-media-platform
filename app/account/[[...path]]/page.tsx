@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { formatBookingDuration } from "@/lib/domain/booking-schedule";
 import { getCurrentIdentity, getDatabase } from "@/lib/server/sites";
 
@@ -16,13 +16,14 @@ type Booking = {
   snapshot_json:string|null;deposit_paid:number|null;balance_paid:number|null;gallery_ready:number|null;
 };
 
-const items = ["overview", "bookings", "settings"];
+const items = ["overview", "bookings", "profile", "settings"];
 export const metadata: Metadata = { title: "Account" };
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage({ params }: Props) {
   const path = (await params).path ?? [];
   const route = path[0] ?? "overview";
+  if (path.length > 1 || !items.includes(route)) notFound();
   const identity = await getCurrentIdentity();
   if (!identity) redirect(`/auth/login?return_to=${encodeURIComponent(`/account/${route}`)}`);
 
@@ -39,7 +40,8 @@ export default async function AccountPage({ params }: Props) {
     // The account remains usable while a new database deployment initializes.
   }
 
-  const title = route[0].toUpperCase() + route.slice(1);
+  const firstName = identity.fullName?.trim().split(/\s+/)[0] || identity.email.split("@")[0];
+  const title = route === "overview" ? `Hi, ${firstName}` : route[0].toUpperCase() + route.slice(1);
   return (
     <div className="dashboard-layout">
       <aside className="sidebar">
@@ -64,8 +66,10 @@ export default async function AccountPage({ params }: Props) {
           ) : (
             <div className="empty-state"><h2>No project requests yet.</h2><p>Requests sent with {identity.email} will appear here.</p><Link className="button button-primary" href="/book">Start a project →</Link></div>
           )
+        ) : route === "settings" ? (
+          <div className="account-details"><h2>Security &amp; sign-in</h2><p>Use a secure email link to reset your password. Resetting it signs you out of existing sessions.</p><Link className="button" href="/auth/forgot-password">Reset password →</Link><h2>Your personal information</h2><p>For changes to your contact details or account removal, contact the E-MEDIA team.</p><Link className="text-link" href="mailto:contact@weareemedia.co.uk">Contact E-MEDIA →</Link></div>
         ) : (
-          <div className="empty-state"><h2>Account details</h2><p>Signed in as {identity.fullName || identity.email}. Contact E-MEDIA if you need to update or remove account data.</p>{identity.phone&&<p>Phone: {identity.phone}</p>}{identity.address&&<p>Address: {identity.address}</p>}</div>
+          <div className="account-details"><h2>Account details</h2><dl><dt>Name</dt><dd>{identity.fullName || "Not provided"}</dd><dt>Email</dt><dd>{identity.email}</dd><dt>Phone</dt><dd>{identity.phone || "Not provided"}</dd><dt>Address</dt><dd>{identity.address || "Not provided"}</dd></dl><p>Need to update your details? <Link className="text-link" href="mailto:contact@weareemedia.co.uk">Contact E-MEDIA →</Link></p></div>
         )}
       </section>
     </div>

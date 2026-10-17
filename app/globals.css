@@ -311,3 +311,26 @@ textarea.input { min-height: 140px; resize: vertical; }
 .gallery-lightbox::backdrop {background:rgba(0,0,0,.9);}
 .gallery-lightbox img {display:block;width:100%;height:auto;max-height:78dvh;object-fit:contain;}
 .gallery-close {display:block;margin:0 0 1rem auto;}
+
+/* Authenticated navigation */
+.user-navigation {position:relative;}
+.user-trigger {display:flex;align-items:center;gap:.65rem;border:0;background:transparent;color:inherit;cursor:pointer;font:inherit;}
+.header-greeting {font-size:.8rem;max-width:9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.user-avatar {display:grid;place-items:center;width:2.5rem;height:2.5rem;border:1px solid var(--border);border-radius:50%;background:var(--foreground,#f4f1ea);color:var(--background);font-size:.8rem;font-weight:700;}
+.user-account-panel {position:absolute;right:0;top:calc(100% + 1rem);width:min(20rem,calc(100vw - 2rem));background:var(--background);border:1px solid var(--border);box-shadow:0 12px 35px #0006;white-space:normal;}
+.user-summary {margin:0;padding:1.25rem;border-bottom:1px solid var(--border);overflow-wrap:anywhere;}
+.user-summary strong,.user-summary span {display:block;}
+.user-summary span {font-size:.75rem;margin-top:.4rem;}
+.user-account-panel a,.user-account-panel form button {display:block;width:100%;padding:.85rem 1.25rem;text-align:left;background:transparent;border:0;color:inherit;font:inherit;font-size:.85rem;cursor:pointer;}
+.user-account-panel a:hover,.user-account-panel form button:hover {background:#ffffff0c;color:var(--brand);}
+.user-account-panel form {border-top:1px solid var(--border);}
+.account-details {max-width:42rem;border-top:1px solid var(--border);padding-top:1.5rem;overflow-wrap:anywhere;}
+.account-details h2 {margin:1.5rem 0 1rem;}
+.account-details dt {font-size:.75rem;text-transform:uppercase;color:var(--brand);margin-top:1.3rem;}
+.account-details dd {margin:.4rem 0 0;white-space:pre-line;}
+@media(max-width:900px) {
+ .site-header:has(.is-signed-in) {grid-template-columns:1fr auto auto;gap:.75rem;}
+ .header-action.is-signed-in {display:flex;}
+ .header-action.is-signed-in>.button,.header-greeting {display:none;}
+ .user-account-panel {right:-3.25rem;}
+}
