@@ -11,7 +11,7 @@ const body = Space_Grotesk({ subsets: ["latin"], variable: "--font-body", displa
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
-  title: { default: `${site.name} — Ideas in motion`, template: `%s — ${site.name}` },
+  title: { default: `${site.name} — Fast content delivery`, template: `%s — ${site.name}` },
   description: site.description,
   alternates: { canonical: "/" },
   openGraph: { title: site.name, description: site.description, type: "website", locale: "en_GB" },

@@ -1,0 +1,13 @@
+import {it,expect,vi} from 'vitest';
+vi.mock('server-only',()=>({}));
+vi.mock('next/headers',()=>({cookies:vi.fn()}));
+vi.mock('@/lib/server/sites',()=>({getDatabase:vi.fn()}));
+import {signupSchema,safeAccountReturn,ownsClientProject} from '@/lib/domain/client-auth';
+import {passwordHash,tokenHash,randomToken,equalHashes} from '@/lib/server/client-auth';
+const details={fullName:'Client Name',email:'Client@Example.com',phone:'+44 7918 000000',address:'10 Example Road, London',password:'a-long-password-123',consent:true};
+it('validates required client details and normalises email',()=>{expect(signupSchema.parse(details).email).toBe('client@example.com');for(const value of [{...details,phone:''},{...details,address:''},{...details,password:'short'},{...details,consent:false}])expect(signupSchema.safeParse(value).success).toBe(false);});
+it('rejects external and malformed return paths',()=>{for(const value of ['https://evil.test','//evil.test','/\\evil.test','/\nfoo'])expect(safeAccountReturn(value)).toBe('/account');expect(safeAccountReturn('/book?service=photography')).toBe('/book?service=photography');});
+it('does not let a local account claim projects by matching email',()=>{const identity={email:'client@example.com',accountId:'client_1'};expect(ownsClientProject(identity,{client_email:identity.email,client_account_id:null})).toBe(false);expect(ownsClientProject(identity,{client_email:identity.email,client_account_id:'client_2'})).toBe(false);expect(ownsClientProject(identity,{client_email:identity.email,client_account_id:'client_1'})).toBe(true);});
+it('prevents legacy identities from opening local-account projects',()=>{expect(ownsClientProject({email:'client@example.com'},{client_email:'client@example.com',client_account_id:'client_1'})).toBe(false);});
+it('salts password hashes and rejects wrong passwords',async()=>{const salt=randomToken(),hash=await passwordHash(details.password,salt);expect(equalHashes(hash,await passwordHash(details.password,salt))).toBe(true);expect(equalHashes(hash,await passwordHash('wrong-password',salt))).toBe(false);expect(await passwordHash(details.password,randomToken())).not.toBe(hash);});
+it('stores only digests of unpredictable session tokens',async()=>{const a=randomToken(),b=randomToken();expect(a).toHaveLength(64);expect(a).not.toBe(b);expect(await tokenHash(a)).not.toBe(a);expect(await tokenHash(a)).toBe(await tokenHash(a));});

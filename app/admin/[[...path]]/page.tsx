@@ -1,3 +1,6 @@
+import {AdminHomepageProof} from '@/components/admin-homepage-proof';
+import {AdminProjectTools} from '@/components/admin-project-tools';
+import type {Project} from '@/lib/server/projects';
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -14,8 +17,8 @@ type ServiceRow = { id: string; name: string; slug: string; booking_mode: string
 type Subscriber = { id: string; email: string; status: string; source: string; consent_at: string };
 type Audit = { id: string; actor_email: string; action: string; entity_type: string; entity_id: string; created_at: string };
 
-const sections = ["dashboard", "bookings", "portfolio", "media", "services", "newsletter", "audit"] as const;
-const statuses = ["NEW", "CONTACTED", "CONFIRMED", "COMPLETED", "CANCELLED"];
+const sections = ["dashboard", "bookings", "homepage", "portfolio", "media", "services", "newsletter", "audit"] as const;
+const statuses = ["NEW", "CONTACTED", "CANCELLED"];
 export const metadata: Metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
 
@@ -44,9 +47,9 @@ async function Dashboard({ database }: { database: D1Database }) {
 }
 
 async function Bookings({ database }: { database: D1Database }) {
-  const bookings = await all<Booking>(database, "SELECT * FROM bookings ORDER BY created_at DESC LIMIT 100");
+  const bookings = await all<Booking & Project>(database, "SELECT b.*,q.* FROM bookings b LEFT JOIN booking_quotes q ON q.booking_id=b.id ORDER BY b.created_at DESC LIMIT 100");
   if (!bookings.length) return <div className="empty-state"><h2>No booking requests yet.</h2><p>New project requests will appear here as soon as a visitor submits the booking form.</p></div>;
-  return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Request</th><th>Client</th><th>Schedule</th><th>Email</th><th>Brief</th><th>Status</th></tr></thead><tbody>{bookings.map((booking) => <tr key={booking.id}><td><strong>{booking.reference}</strong><small>{booking.service_name}<br />{formatDate(booking.created_at)}</small></td><td>{booking.client_name}<small><a href={`mailto:${booking.client_email}`}>{booking.client_email}</a></small></td><td>{formatDate(booking.preferred_at)}<small>{formatBookingDuration(booking.duration_minutes)}</small></td><td><small>Receipt: {booking.client_request_email_sent_at ? "sent" : "pending"}<br />Team: {booking.team_request_email_sent_at ? "sent" : "pending"}{booking.status === "CONFIRMED" && <><br />Confirmation: {booking.client_confirmation_email_sent_at ? "sent" : "pending"}</>}</small></td><td className="admin-brief">{booking.brief}</td><td><form className="admin-inline-form" method="post" action={`/api/admin/bookings/${booking.id}/status`}><select className="input input-compact" name="status" defaultValue={booking.status}>{statuses.map((status) => <option key={status}>{status}</option>)}</select><button className="button" type="submit">Save</button></form></td></tr>)}</tbody></table></div>;
+  return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Request</th><th>Client</th><th>Schedule</th><th>Email</th><th>Brief</th><th>Status</th></tr></thead><tbody>{bookings.map((booking) => <tr key={booking.id}><td><strong>{booking.reference}</strong><small>{booking.service_name}<br />{formatDate(booking.created_at)}</small></td><td>{booking.client_name}<small><a href={`mailto:${booking.client_email}`}>{booking.client_email}</a></small></td><td>{formatDate(booking.preferred_at)}<small>{formatBookingDuration(booking.duration_minutes)}</small></td><td><small>Receipt: {booking.client_request_email_sent_at ? "sent" : "pending"}<br />Team: {booking.team_request_email_sent_at ? "sent" : "pending"}{booking.status === "CONFIRMED" && <><br />Confirmation: {booking.client_confirmation_email_sent_at ? "sent" : "pending"}</>}</small></td><td className="admin-brief">{booking.brief}</td><td><AdminProjectTools p={booking} /><form className="admin-inline-form" method="post" action={`/api/admin/bookings/${booking.id}/status`}><select className="input input-compact" name="status" defaultValue={booking.status}>{[...new Set([booking.status,...statuses])].map((status) => <option key={status}>{status}</option>)}</select><button className="button" type="submit">Save</button></form></td></tr>)}</tbody></table></div>;
 }
 
 async function Media({ database }: { database: D1Database }) {
@@ -85,7 +88,7 @@ export default async function AdminPage({ params }: Props) {
   const identity = await getCurrentIdentity();
   if (!identity) redirect(`/auth/login?return_to=${encodeURIComponent(`/admin${route === "dashboard" ? "" : `/${route}`}`)}`);
   if (!(await isAdministrator(identity))) {
-    return <section className="page-shell"><div className="auth-card"><p className="eyebrow">Access denied</p><h1>Staff only.</h1><p className="notice">The signed-in account is not on the E-MEDIA administrator allowlist.</p><a className="button" href="/signout-with-chatgpt?return_to=/auth/login">Use another account</a></div></section>;
+    return <section className="page-shell"><div className="auth-card"><p className="eyebrow">Access denied</p><h1>Staff only.</h1><p className="notice">The signed-in account is not on the E-MEDIA administrator allowlist.</p><form action="/api/auth/logout" method="post"><button className="button">Sign out</button></form></div></section>;
   }
 
   let database: D1Database;
@@ -96,5 +99,5 @@ export default async function AdminPage({ params }: Props) {
   }
 
   const title = route.replaceAll("-", " ");
-  return <div className="dashboard-layout"><aside className="sidebar"><p className="sidebar-label">E-MEDIA operations</p><nav className="sidebar-nav" aria-label="Administration">{sections.map((item) => <Link href={item === "dashboard" ? "/admin" : `/admin/${item}`} key={item}>{item[0].toUpperCase() + item.slice(1)}</Link>)}</nav></aside><section className="dashboard-main"><div className="dashboard-head"><div><p className="eyebrow">Administration</p><h1 className="dashboard-title">{title}</h1></div><div className="admin-user"><span className="tag">ADMIN</span><small>{identity.fullName || identity.email}</small><a href="/signout-with-chatgpt?return_to=/">Sign out</a></div></div>{route === "dashboard" && <Dashboard database={database} />}{route === "bookings" && <Bookings database={database} />}{route === "media" && <Media database={database} />}{route === "portfolio" && <Portfolio database={database} />}{route === "services" && <Services database={database} />}{route === "newsletter" && <NewsletterSubscribers database={database} />}{route === "audit" && <AuditLog database={database} />}</section></div>;
+  return <div className="dashboard-layout"><aside className="sidebar"><p className="sidebar-label">E-MEDIA operations</p><nav className="sidebar-nav" aria-label="Administration">{sections.map((item) => <Link href={item === "dashboard" ? "/admin" : `/admin/${item}`} key={item}>{item[0].toUpperCase() + item.slice(1)}</Link>)}</nav></aside><section className="dashboard-main"><div className="dashboard-head"><div><p className="eyebrow">Administration</p><h1 className="dashboard-title">{title}</h1></div><div className="admin-user"><span className="tag">ADMIN</span><small>{identity.fullName || identity.email}</small><form action="/api/auth/logout" method="post"><button className="button">Sign out</button></form></div></div>{route === "dashboard" && <Dashboard database={database} />}{route === "homepage" && <AdminHomepageProof database={database} />}{route === "bookings" && <Bookings database={database} />}{route === "media" && <Media database={database} />}{route === "portfolio" && <Portfolio database={database} />}{route === "services" && <Services database={database} />}{route === "newsletter" && <NewsletterSubscribers database={database} />}{route === "audit" && <AuditLog database={database} />}</section></div>;
 }

@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from 'next/link';
+import { ratesFor, fromPrice } from '@/lib/domain/quotes';
+import { formatMoney } from '@/lib/domain/pricing';
 import { services } from "@/lib/content";
 import {
   bookingRequestSchema,
@@ -16,7 +19,7 @@ import {
 const steps = ["Service", "Schedule", "Details", "Review"];
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function BookingStepper() {
+export function BookingStepper({identity}:{identity:{email:string;fullName:string|null}|null}) {
   const searchParams = useSearchParams();
   const requestedService = searchParams?.get("service") ?? "";
   const initialService = services.some((service) => service.slug === requestedService)
@@ -27,7 +30,9 @@ export function BookingStepper() {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("");
-  const [details, setDetails] = useState({ name: "", email: "", brief: "" });
+  const [rateId,setRateId]=useState('');
+  const [quantity,setQuantity]=useState(1);
+  const [details, setDetails] = useState({ name: identity?.fullName ?? '', email: identity?.email ?? '', brief: '' });
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [reference, setReference] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -49,6 +54,8 @@ export function BookingStepper() {
   const submit = async () => {
     const candidate = {
       serviceSlug,
+      rateId: rateId || undefined,
+      quantity,
       date,
       time,
       durationMinutes: Number(durationMinutes),
@@ -99,8 +106,8 @@ export function BookingStepper() {
       <div className="empty-state success">
         <p className="eyebrow">Request received</p>
         <h2>We have your project request.</h2>
-        <p>E-MEDIA will review the details and contact you to confirm the next step. A request is not a confirmed booking until you receive confirmation.</p>
-        {reference && <p className="notice">Your reference: <strong>{reference}</strong></p>}
+        <p>E-MEDIA will review the details and contact you to confirm the next step. Your booking is confirmed only after the quote is approved and your 50% deposit is received.</p>
+        {reference && <p className="notice">Your reference: <strong>{reference}</strong></p>}<Link href="/account" className="button">Track your project →</Link>
       </div>
     );
   }
@@ -118,18 +125,18 @@ export function BookingStepper() {
       {step === 0 && (
         <div>
           <h2 className="project-title">Choose a service</h2>
-          <p className="notice">Public prices have not been configured, so every current service starts as a quote or booking request.</p>
+          <p className="notice">Guide prices for the stated scope. We review availability and issue an itemised quote before any deposit is due.</p>
           <div className="choice-grid">
             {services.map((service) => (
               <button
                 type="button"
                 className="choice"
                 aria-pressed={serviceSlug === service.slug}
-                onClick={() => setServiceSlug(service.slug)}
+                onClick={() => {setServiceSlug(service.slug);setRateId('');setQuantity(1);}}
                 key={service.slug}
               >
                 <strong>{service.name}</strong>
-                <small>{service.summary}</small>
+                <small>{service.summary}</small><strong>{fromPrice(service.slug)}</strong>
               </button>
             ))}
           </div>
@@ -139,6 +146,8 @@ export function BookingStepper() {
       {step === 1 && (
         <div>
           <h2 className="project-title">Preferred schedule</h2>
+          <div className="field"><label htmlFor="package">Preferred package</label><select id="package" className="input" value={rateId} onChange={e=>{setRateId(e.target.value);setQuantity(ratesFor(serviceSlug).find(r=>r.id===e.target.value)?.minimumQuantity??1);}}><option value="">Help me choose / custom brief</option>{ratesFor(serviceSlug).map(r=><option key={r.id} value={r.id}>{r.name} — {r.amountMinor===null?'Custom quote':formatMoney(r.amountMinor)}{r.unit==='image'?' per image':r.unit==='month'?' per month':''}</option>)}</select></div>
+          {rateId&&<><p className="notice">{ratesFor(serviceSlug).find(r=>r.id===rateId)?.scope}</p><div className="field"><label htmlFor="quantity">Quantity (packages, images or months)</label><input id="quantity" className="input" type="number" min={ratesFor(serviceSlug).find(r=>r.id===rateId)?.minimumQuantity??1} max={10000} value={quantity} onChange={e=>setQuantity(Number(e.target.value))}/></div></>}
           <p className="notice">Choose your preferred date, start time and duration. E-MEDIA will confirm availability before the booking is final.</p>
           <div className="form-grid schedule-grid">
             <div className="field">
@@ -193,17 +202,18 @@ export function BookingStepper() {
             <div className="capability-row"><span className="section-number">02</span><strong>Preferred schedule</strong><span className="capability-copy">{date} at {time} · {formatBookingDuration(Number(durationMinutes))} · Europe/London</span></div>
             <div className="capability-row"><span className="section-number">03</span><strong>Contact</strong><span className="capability-copy">{details.name} · {details.email}</span></div>
           </div>
-          <p className="notice">No price or deposit is assumed. E-MEDIA will confirm scope, availability and any commercial terms directly with you.</p>
+          <p className="notice">E-MEDIA will approve availability and issue your quote. Pay 50% to confirm the booking; pay the final 50% after gallery preview to unlock original downloads.</p>
           {state === "error" && errorMessage && <p className="error-text" role="alert">{errorMessage}</p>}
         </div>
       )}
 
+      {!identity&&<p className="notice">Create or access your client account before sending your request. <Link href="/auth/signup?return_to=/book">Sign in / register →</Link></p>}
       <div className="booking-actions">
         <button className="button" type="button" disabled={step === 0 || state === "sending"} onClick={() => setStep((value) => value - 1)}>← Back</button>
         {step < 3 ? (
           <button className="button button-primary" type="button" disabled={!canContinue} onClick={() => setStep((value) => value + 1)}>Continue →</button>
         ) : (
-          <button className="button button-primary" type="button" disabled={state === "sending"} onClick={submit}>{state === "sending" ? "Sending…" : "Send request →"}</button>
+          <button className="button button-primary" type="button" disabled={state === "sending" || !identity} onClick={submit}>{state === "sending" ? "Sending…" : "Send request →"}</button>
         )}
       </div>
     </div>

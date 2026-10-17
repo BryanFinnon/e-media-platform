@@ -1,3 +1,5 @@
+import { rates } from '@/lib/domain/quotes';
+import { sameOrigin } from '@/lib/server/projects';
 import { NextResponse } from "next/server";
 import {
   bookingRequestSchema,
@@ -10,9 +12,13 @@ import {
   createBookingReference,
   createId,
   getDatabase,
+  getCurrentIdentity,
 } from "@/lib/server/sites";
 
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) return NextResponse.json({error: 'Invalid origin'}, {status:403});
+  const identity = await getCurrentIdentity();
+  if (!identity) return NextResponse.json({error:'Please sign in before submitting a project request.'},{status:401});
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const body: unknown = await request.json().catch(() => null);
   const parsed = bookingRequestSchema.safeParse(body);
@@ -34,6 +40,10 @@ export async function POST(request: Request) {
       .first<{ slug: string; name: string }>();
     if (!service) return NextResponse.json({ error: "The selected service is currently unavailable." }, { status: 404 });
 
+    const rate = parsed.data.rateId ? rates.find(r=>r.id===parsed.data.rateId && r.serviceSlug===parsed.data.serviceSlug) : null;
+    if (parsed.data.rateId && !rate) return NextResponse.json({error:'Choose a valid package'}, {status:400});
+    if (rate && parsed.data.quantity < rate.minimumQuantity) return NextResponse.json({error:`Minimum quantity: ${rate.minimumQuantity}`},{status:400});
+    parsed.data.email = identity.email;
     const id = createId("book");
     const reference = createBookingReference();
     const now = new Date().toISOString();
@@ -42,8 +52,8 @@ export async function POST(request: Request) {
       database
         .prepare(
           `INSERT INTO bookings
-           (id, reference, service_slug, service_name, preferred_at, duration_minutes, timezone, client_name, client_email, brief, status, source, consent_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NEW', 'WEBSITE', ?, ?, ?)`,
+           (id, reference, service_slug, service_name, preferred_at, duration_minutes, timezone, client_name, client_email, brief, status, source, consent_at, created_at, updated_at, rate_id, quantity, client_account_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NEW', 'WEBSITE', ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           id,
@@ -59,6 +69,9 @@ export async function POST(request: Request) {
           now,
           now,
           now,
+          rate?.id ?? null,
+          parsed.data.quantity,
+          identity.accountId ?? null,
         ),
       database
         .prepare(

@@ -1,0 +1,10 @@
+import {it,expect,vi} from 'vitest';
+import Stripe from 'stripe';
+vi.mock('server-only',()=>({}));
+vi.mock('@/lib/env',()=>({env:{STRIPE_WEBHOOK_SECRET:'whsec_unit_test_only'}}));
+vi.mock('@/lib/server/sites',()=>({getDatabase:async()=>({prepare:()=>({bind:()=>({first:async()=>null})})})}));
+vi.mock('@/lib/server/projects',()=>({project:vi.fn(),notifyProject:vi.fn()}));
+import {POST} from '@/app/api/stripe/webhook/route';
+it('rejects unsigned webhook requests without an API key',async()=>{const response=await POST(new Request('https://weareemedia.co.uk/api/stripe/webhook',{method:'POST',body:'{}'}));expect(response.status).toBe(400);});
+it('rejects forged webhook signatures',async()=>{const response=await POST(new Request('https://weareemedia.co.uk/api/stripe/webhook',{method:'POST',headers:{'stripe-signature':'t=0,v1=invalid'},body:'{}'}));expect(response.status).toBe(400);});
+it('verifies signed events without requiring an API key',async()=>{const payload=JSON.stringify({id:'evt_unit_only',type:'account.updated',data:{object:{}}});const signature=Stripe.webhooks.generateTestHeaderString({payload,secret:'whsec_unit_test_only'});const response=await POST(new Request('https://weareemedia.co.uk/api/stripe/webhook',{method:'POST',headers:{'stripe-signature':signature},body:payload}));expect(response.status).toBe(200);});

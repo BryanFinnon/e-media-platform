@@ -3,7 +3,7 @@ import type { FeatureKey, HubItem, PortfolioProject, Service } from "@/lib/types
 export const site = {
   name: "E-MEDIA",
   description:
-    "An independent London creative studio, technology partner and youth media platform.",
+    "E-MEDIA is a London creative and digital agency for photography, video, live production, websites, applications and AI automation. Fast content delivery.",
   location: "London / UK",
   email: "contact@weareemedia.co.uk",
   emailIsPlaceholder: false,

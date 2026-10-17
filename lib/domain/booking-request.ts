@@ -7,6 +7,8 @@ import {
 
 export const bookingRequestSchema = z.object({
   serviceSlug: z.string().min(2).max(80),
+  rateId: z.string().max(80).optional(),
+  quantity: z.number().int().min(1).max(10000).default(1),
   date: z.iso.date(),
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   durationMinutes: z.number().int()

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import {clientSession} from "./client-auth";
 import { headers } from "next/headers";
 
 export type D1Result<T = unknown> = {
@@ -47,7 +48,7 @@ type SitesEnv = {
   [key: string]: unknown;
 };
 
-export type SitesIdentity = { email: string; fullName: string | null };
+export type SitesIdentity = { email: string; fullName: string | null; accountId?: string; phone?: string; address?: string };
 
 async function getSitesEnv(): Promise<SitesEnv> {
   const context = await getCloudflareContext({ async: true });
@@ -74,7 +75,10 @@ export function identityFromHeaders(requestHeaders: Headers): SitesIdentity | nu
 }
 
 export async function getCurrentIdentity(): Promise<SitesIdentity | null> {
-  return identityFromHeaders(await headers());
+  const client=await clientSession();
+  if(client)return client;
+  const staff=identityFromHeaders(await headers());
+  return await isAdministrator(staff) ? staff : null;
 }
 
 async function getAdminEmails(): Promise<Set<string>> {
@@ -92,13 +96,20 @@ async function getAdminEmails(): Promise<Set<string>> {
   );
 }
 
+export async function getAdminLoginCredential():Promise<{email:string;salt:string;hash:string}|null>{
+ const raw=(await getSitesEnv()).ADMIN_LOGIN_CREDENTIAL;
+ if(typeof raw!=="string")return null;
+ try{const value=JSON.parse(raw);if(typeof value.email!=="string"||typeof value.salt!=="string"||typeof value.hash!=="string"||!/^[a-f0-9]{64}$/.test(value.hash)||!(await getAdminEmails()).has(value.email))return null;return value;}catch{return null;}
+}
+
 export async function isAdministrator(identity: SitesIdentity | null) {
   if (!identity) return false;
+  if(identity.accountId){const account=await (await getDatabase()).prepare("SELECT role FROM client_accounts WHERE id=?").bind(identity.accountId).first<{role:string}>();return account?.role === "admin";}
   return (await getAdminEmails()).has(identity.email);
 }
 
-export async function requireAdministrator(request: Request) {
-  const identity = identityFromHeaders(request.headers);
+export async function requireAdministrator(_request: Request) {
+  const identity = await getCurrentIdentity();
   if (!identity) return { identity: null, status: 401 as const };
   if (!(await isAdministrator(identity))) return { identity, status: 403 as const };
   return { identity, status: 200 as const };

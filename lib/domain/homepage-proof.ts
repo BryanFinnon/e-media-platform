@@ -1,0 +1,3 @@
+import {z} from 'zod';
+export const brandSchema=z.object({name:z.string().trim().min(2).max(120),relationship:z.enum(['Client','Partner']),logoMediaId:z.string().max(100).optional(),published:z.boolean(),permission:z.boolean()}).refine(v=>!v.published||v.permission,{message:'Confirm permission to publish this name/logo.'});
+export const reviewSchema=z.object({name:z.string().trim().min(2).max(120),company:z.string().trim().max(120),quote:z.string().trim().min(10).max(1200),stars:z.number().int().min(1).max(5),published:z.boolean(),permission:z.boolean()}).refine(v=>!v.published||v.permission,{message:'Confirm this is a real review and the client approved public use.'});

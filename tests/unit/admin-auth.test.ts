@@ -1,0 +1,15 @@
+import {it,expect,vi,beforeEach} from 'vitest';
+vi.mock('server-only',()=>({}));
+const mocks=vi.hoisted(()=>({credential:{email:'admin@example.com',salt:'salt',hash:'correct-hash'} as {email:string;salt:string;hash:string}|null,row:null as {id:string;role:string;password_hash:string}|null,hash:'correct-hash',run:vi.fn(),batch:vi.fn()}));
+vi.mock('@/lib/server/sites',()=>({getAdminLoginCredential:async()=>mocks.credential,createId:()=> 'new-admin'}));
+vi.mock('@/lib/server/client-auth',()=>({passwordHash:async()=>mocks.hash,equalHashes:(a:string,b:string)=>a===b}));
+import {authenticateConfiguredAdmin} from '@/lib/server/admin-auth';
+import type {D1Database} from '@/lib/server/sites';
+const database={prepare:vi.fn(()=>({bind:vi.fn().mockReturnThis(),first:async()=>mocks.row,run:mocks.run})),batch:mocks.batch} as unknown as D1Database;
+beforeEach(()=>{mocks.credential={email:'admin@example.com',salt:'salt',hash:'correct-hash'};mocks.row=null;mocks.hash='correct-hash';mocks.run.mockReset();mocks.batch.mockReset();});
+it('does not grant admin to ordinary account emails',async()=>{expect(await authenticateConfiguredAdmin(database,'client@example.com','password')).toEqual({reserved:false,accountId:null});expect(mocks.run).not.toHaveBeenCalled();});
+it('fails closed without configured admin credentials',async()=>{mocks.credential=null;expect((await authenticateConfiguredAdmin(database,'admin@example.com','password')).accountId).toBeNull();});
+it('rejects wrong admin passwords without changing any account',async()=>{mocks.hash='wrong';expect(await authenticateConfiguredAdmin(database,'admin@example.com','wrong')).toEqual({reserved:true,accountId:null});expect(mocks.run).not.toHaveBeenCalled();expect(mocks.batch).not.toHaveBeenCalled();});
+it('creates the admin account only after credential verification',async()=>{expect((await authenticateConfiguredAdmin(database,'admin@example.com','password')).accountId).toBe('new-admin');expect(mocks.run).toHaveBeenCalledOnce();});
+it('revokes existing sessions when securing an existing account',async()=>{mocks.row={id:'existing',role:'client',password_hash:'old'};expect((await authenticateConfiguredAdmin(database,'admin@example.com','password')).accountId).toBe('existing');expect(mocks.batch).toHaveBeenCalledOnce();expect(mocks.batch.mock.calls[0][0]).toHaveLength(2);});
+it('leaves other admin sessions intact on a normal login',async()=>{mocks.row={id:'existing',role:'admin',password_hash:'correct-hash'};await authenticateConfiguredAdmin(database,'admin@example.com','password');expect(mocks.batch).not.toHaveBeenCalled();expect(mocks.run).not.toHaveBeenCalled();});

@@ -1,0 +1,9 @@
+'use client';
+import Image from 'next/image';
+import {useRef,useState,useEffect} from 'react';
+type Asset={id:string;title:string;mime_type:string};
+export function DeliveryGallery({files,paid}:{files:Asset[];paid:boolean}){
+ const [selected,setSelected]=useState<Asset|null>(null);const dialog=useRef<HTMLDialogElement>(null);
+ useEffect(()=>{if(selected)dialog.current?.showModal();},[selected]);
+ return <section className="section"><h2>Your gallery</h2><p className="notice">{paid?'Paid in full. View your photos and download the original files below.':'Your finished work is ready to review. View the watermarked previews now; pay the remaining balance to unlock clean original downloads.'}</p><div className="delivery-grid">{files.map(f=><article key={f.id} className="admin-panel"><h3>{f.title}</h3>{f.mime_type.startsWith('video/')?<video controls controlsList="nodownload" preload="metadata" src={`/api/deliverables/${f.id}`} />:<button type="button" className="gallery-preview-button" onClick={()=>setSelected(f)} aria-label={`View ${f.title} larger`}><Image unoptimized src={`/api/deliverables/${f.id}`} alt={f.title} width={800} height={600} style={{objectFit:'contain'}}/><span>View larger ↗</span></button>}{paid?<a className="button button-primary" href={`/api/deliverables/${f.id}?download=1`}>Download original ↓</a>:<p className="tag">Preview available · Original download locked</p>}</article>)}</div><dialog ref={dialog} className="gallery-lightbox" onClose={()=>setSelected(null)} onClick={event=>{if(event.target===event.currentTarget)dialog.current?.close();}} aria-label={selected?.title??'Photo preview'}>{selected&&<><button className="button gallery-close" onClick={()=>dialog.current?.close()} autoFocus>Close ×</button><Image unoptimized src={`/api/deliverables/${selected.id}`} alt={selected.title} width={1600} height={1200} style={{objectFit:'contain'}}/><p>{selected.title}{!paid?' · Watermarked preview':''}</p></>}</dialog></section>;
+}
