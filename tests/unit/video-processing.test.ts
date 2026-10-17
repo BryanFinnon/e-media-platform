@@ -1,0 +1,23 @@
+import {it,expect,vi,beforeEach,afterEach} from 'vitest';
+vi.mock('server-only',()=>({}));
+const m=vi.hoisted(()=>({env:{} as Record<string,string>,fetch:vi.fn(),run:vi.fn(),query:vi.fn()}));
+vi.mock('@/lib/server/sites',()=>({getSitesEnv:async()=>m.env}));
+vi.mock('@/lib/server/client-auth',()=>({randomToken:()=> 'b'.repeat(64),tokenHash:async()=> 'digest'}));
+import {prepareVideo,videoEnabled,videoPlayerURL} from '@/lib/server/video-processing';
+import type {Upload} from '@/lib/server/large-upload';
+import type {D1Database} from '@/lib/server/sites';
+const uid='a'.repeat(32),watermark='c'.repeat(32);
+const db={prepare:()=>({bind:()=>({run:m.run})})} as unknown as D1Database;
+const row={id:'upload_test',purpose:'original',mime_type:'video/mp4',state:'complete',size_bytes:1000,stream_id:uid} as Upload;
+const response=(result:unknown)=>new Response(JSON.stringify({success:true,result}),{headers:{'content-type':'application/json'}});
+beforeEach(()=>{vi.clearAllMocks();vi.stubGlobal('fetch',m.fetch);m.env={CLOUDFLARE_ACCOUNT_ID:'d'.repeat(32),CLOUDFLARE_STREAM_API_TOKEN:'private-token-123',CLOUDFLARE_STREAM_WATERMARK_UID:watermark,NEXT_PUBLIC_SITE_URL:'https://weareemedia.co.uk'};m.run.mockResolvedValue({meta:{changes:1}});});
+afterEach(()=>vi.unstubAllGlobals());
+it('does not pretend processing is enabled without provider credentials',async()=>{m.env={};expect(await videoEnabled()).toBe(false);await expect(prepareVideo(db,row)).rejects.toThrow('not activated');expect(m.fetch).not.toHaveBeenCalled();});
+it('blocks automatic processing for originals beyond the provider limit',async()=>{await expect(prepareVideo(db,{...row,size_bytes:31_000_000_000})).rejects.toThrow('30 GB');expect(m.fetch).not.toHaveBeenCalled();});
+it('does not publish a preview that has no verified watermark or signed-URL protection',async()=>{m.fetch.mockResolvedValue(response({uid,readyToStream:true,requireSignedURLs:false,watermark:{uid:watermark},playback:{hls:`https://customer-abc.cloudflarestream.com/${uid}/manifest/video.m3u8`}}));await expect(prepareVideo(db,row)).rejects.toThrow('protection');});
+it('stores only a trusted playback host after protected encoding completes',async()=>{m.fetch.mockResolvedValue(response({uid,readyToStream:true,requireSignedURLs:true,watermark:{uid:watermark},playback:{hls:`https://customer-abc.cloudflarestream.com/${uid}/manifest/video.m3u8`}}));expect((await prepareVideo(db,row)).ready).toBe(true);expect(m.run).toHaveBeenCalled();});
+it('keeps an encoding video unavailable until ready',async()=>{m.fetch.mockResolvedValue(response({uid,readyToStream:false,status:{state:'inprogress'}}));expect((await prepareVideo(db,row)).ready).toBe(false);expect(m.run).not.toHaveBeenCalled();});
+it('rejects a playback host outside the provider domain',async()=>{await expect(videoPlayerURL(uid,'evil.example')).rejects.toThrow('unavailable');expect(m.fetch).not.toHaveBeenCalled();});
+it('uses short-lived signed playback without enabling downloads',async()=>{m.fetch.mockResolvedValue(response({token:'signed-playback-token-123456'}));expect(await videoPlayerURL(uid,'customer-abc.cloudflarestream.com')).toContain('/signed-playback-token-123456/iframe');const options=m.fetch.mock.calls[0][1];expect(options.body).toBeUndefined();expect(options.headers.authorization).toBe('Bearer private-token-123');});
+
+it('submits only a private watermarked copy and keeps the pull credential out of its result',async()=>{m.fetch.mockResolvedValueOnce(response({uid,readyToStream:false})).mockResolvedValueOnce(response({uid,readyToStream:false}));const result=await prepareVideo(db,{...row,stream_id:null});const body=JSON.parse(m.fetch.mock.calls[0][1].body);expect(body.requireSignedURLs).toBe(true);expect(body.watermark.uid).toBe(watermark);expect(body.url).toMatch(/^https:\/\/weareemedia.co.uk\/api\/video-source\/upload_test\?token=/);expect(JSON.stringify(result)).not.toContain('token=');});

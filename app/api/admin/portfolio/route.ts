@@ -9,6 +9,7 @@ const inputSchema = z.object({
   summary: z.string().trim().min(10).max(600),
   coverMediaId: z.string().max(80).optional(),
   published: z.boolean(),
+  videoMediaId: z.string().max(100).optional(),
 });
 
 function slugify(value: string) {
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
     yearLabel: form.get("yearLabel"),
     summary: form.get("summary"),
     coverMediaId: String(form.get("coverMediaId") ?? "") || undefined,
+    videoMediaId: String(form.get("videoMediaId") ?? "") || undefined,
     published: form.get("published") === "on",
   });
   if (!parsed.success) return NextResponse.json({ error: "Invalid portfolio project" }, { status: 400 });
@@ -35,14 +37,19 @@ export async function POST(request: Request) {
   const slug = `${slugify(parsed.data.title)}-${id.slice(-6)}`;
   const now = new Date().toISOString();
   const database = await getDatabase();
+  for (const [mediaId,kind] of [[parsed.data.coverMediaId,"image/"],[parsed.data.videoMediaId,"video/"]] as const) {
+    if (!mediaId) continue;
+    const media=await database.prepare("SELECT mime_type,visibility FROM media_assets WHERE id=?").bind(mediaId).first<{mime_type:string;visibility:string}>();
+    if (!media || media.visibility!=="PUBLIC" || !media.mime_type.startsWith(kind)) return NextResponse.json({error:"Select valid public media for the portfolio."},{status:400});
+  }
   await database.batch([
     database
       .prepare(
         `INSERT INTO portfolio_items
-         (id, slug, title, category, year_label, summary, cover_media_id, published, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, slug, title, category, year_label, summary, cover_media_id, published, created_at, updated_at, video_media_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(id, slug, parsed.data.title, parsed.data.category, parsed.data.yearLabel, parsed.data.summary, parsed.data.coverMediaId ?? null, parsed.data.published ? 1 : 0, now, now),
+      .bind(id, slug, parsed.data.title, parsed.data.category, parsed.data.yearLabel, parsed.data.summary, parsed.data.coverMediaId ?? null, parsed.data.published ? 1 : 0, now, now, parsed.data.videoMediaId ?? null),
     database
       .prepare(
         `INSERT INTO audit_log (id, actor_email, action, entity_type, entity_id, metadata_json, created_at)

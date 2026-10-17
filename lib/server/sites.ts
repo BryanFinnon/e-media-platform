@@ -23,13 +23,23 @@ export type D1Database = {
 };
 
 type R2ObjectBody = {
+  size: number;
   body: ReadableStream<Uint8Array>;
   httpEtag?: string;
   httpMetadata?: { contentType?: string; cacheControl?: string };
 };
 
+export type R2Multipart = {
+ uploadId:string;
+ uploadPart:(number:number,value:ArrayBuffer)=>Promise<{partNumber:number;etag:string}>;
+ complete:(parts:{partNumber:number;etag:string}[])=>Promise<{size:number}>;
+ abort:()=>Promise<void>;
+};
 export type R2Bucket = {
-  get: (key: string) => Promise<R2ObjectBody | null>;
+  get: (key: string, options?: {range: {offset:number;length:number}}) => Promise<R2ObjectBody | null>;
+  head: (key:string) => Promise<{size:number}|null>;
+  createMultipartUpload: (key:string, options?:{httpMetadata:{contentType:string}}) => Promise<R2Multipart>;
+  resumeMultipartUpload: (key:string,uploadId:string) => R2Multipart;
   put: (
     key: string,
     value: ArrayBuffer | ReadableStream<Uint8Array>,
@@ -50,7 +60,7 @@ type SitesEnv = {
 
 export type SitesIdentity = { email: string; fullName: string | null; accountId?: string; phone?: string; address?: string };
 
-async function getSitesEnv(): Promise<SitesEnv> {
+export async function getSitesEnv(): Promise<SitesEnv> {
   const context = await getCloudflareContext({ async: true });
   return context.env as unknown as SitesEnv;
 }

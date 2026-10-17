@@ -1,0 +1,18 @@
+import {it,expect,vi,beforeEach} from 'vitest';
+vi.mock('server-only',()=>({}));
+const m=vi.hoisted(()=>({access:vi.fn(),create:vi.fn(),find:vi.fn(),status:vi.fn(),complete:vi.fn(),put:vi.fn(),prepare:vi.fn(),limit:vi.fn()}));
+vi.mock('@/lib/server/sites',()=>({requireAdministrator:m.access,getDatabase:async()=>({prepare:m.prepare}),getFileStorage:async()=>({}),checkDatabaseRateLimit:m.limit}));
+vi.mock('@/lib/server/projects',()=>({project:async()=>({deposit_paid:1,status:'CONFIRMED'})}));
+vi.mock('@/lib/server/large-upload',async(importOriginal)=>{const real=await importOriginal<typeof import('@/lib/server/large-upload')>();return {...real,createUpload:m.create,findUpload:m.find,uploadStatus:m.status,completeUpload:m.complete,putPart:m.put};});
+import {POST as create} from '@/app/api/admin/uploads/route';
+import {GET,PUT,POST as finish} from '@/app/api/admin/uploads/[id]/route';
+const props={params:Promise.resolve({id:'upload_a'})};
+const req=(body:unknown={},origin='https://weareemedia.co.uk')=>new Request('https://weareemedia.co.uk/api/admin/uploads',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(body)});
+beforeEach(()=>{vi.clearAllMocks();m.access.mockResolvedValue({status:200,identity:{email:'admin@example.com'}});m.limit.mockResolvedValue({success:true});m.find.mockResolvedValue({id:'upload_a',size_bytes:32});m.create.mockResolvedValue({id:'upload_a'});m.complete.mockResolvedValue(undefined);});
+it('rejects unauthenticated upload creation before touching storage',async()=>{m.access.mockResolvedValue({status:401});expect((await create(req())).status).toBe(401);expect(m.create).not.toHaveBeenCalled();});
+it('rejects clients even if they know an upload ID',async()=>{m.access.mockResolvedValue({status:403});expect((await GET(new Request('https://weareemedia.co.uk/api/admin/uploads/upload_a'),props)).status).toBe(403);expect(m.find).not.toHaveBeenCalled();});
+it('requires an exact origin on mutation requests',async()=>{expect((await create(req({},'https://other.example'))).status).toBe(403);expect((await finish(req({},''),props)).status).toBe(403);expect(m.complete).not.toHaveBeenCalled();});
+it('hides other administrators’ uploads',async()=>{m.find.mockResolvedValue(null);expect((await GET(new Request('https://weareemedia.co.uk/api/admin/uploads/upload_a'),props)).status).toBe(404);expect(m.find).toHaveBeenCalledWith(expect.anything(),'upload_a','admin@example.com');});
+it('rejects oversized metadata before creating an R2 upload',async()=>{expect((await create(req({purpose:'public',filename:'huge.mp4',mimeType:'video/mp4',size:101*1024**3}))).status).toBe(400);expect(m.create).not.toHaveBeenCalled();});
+it('limits upload-session creation',async()=>{m.limit.mockResolvedValue({success:false});expect((await create(req({purpose:'public',filename:'a.mp4',mimeType:'video/mp4',size:32}))).status).toBe(429);expect(m.create).not.toHaveBeenCalled();});
+it('rejects oversized chunk bodies even without a trustworthy Content-Length',async()=>{const r=new Request('https://weareemedia.co.uk/api/admin/uploads/upload_a?part=1',{method:'PUT',headers:{origin:'https://weareemedia.co.uk'},body:new Uint8Array(33)});expect((await PUT(r,props)).status).toBe(413);expect(m.put).not.toHaveBeenCalled();});

@@ -9,6 +9,7 @@ export type PublishedPortfolioItem = {
   category: string;
   yearLabel: string;
   summary: string;
+  videoMediaId: string | null;
   coverMediaId: string | null;
   coverAltText: string | null;
 };
@@ -20,6 +21,7 @@ type PortfolioRow = {
   category: string;
   year_label: string;
   summary: string;
+  video_media_id: string | null;
   cover_media_id: string | null;
   cover_alt_text: string | null;
 };
@@ -29,7 +31,7 @@ export async function getPublishedPortfolio(): Promise<PublishedPortfolioItem[]>
     const result = await (await getDatabase())
       .prepare(
         `SELECT p.id, p.slug, p.title, p.category, p.year_label, p.summary,
-                p.cover_media_id, m.alt_text AS cover_alt_text
+                p.cover_media_id, p.video_media_id, m.alt_text AS cover_alt_text
          FROM portfolio_items p
          LEFT JOIN media_assets m ON m.id = p.cover_media_id
          WHERE p.published = 1
@@ -43,6 +45,7 @@ export async function getPublishedPortfolio(): Promise<PublishedPortfolioItem[]>
       category: item.category,
       yearLabel: item.year_label,
       summary: item.summary,
+      videoMediaId: item.video_media_id,
       coverMediaId: item.cover_media_id,
       coverAltText: item.cover_alt_text,
     }));

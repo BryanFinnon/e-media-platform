@@ -38,7 +38,7 @@ pnpm test
 pnpm build
 ```
 
-The latest validated suite contains 100 tests. Browser journey specifications are in `tests/e2e`; the most recent workflow was also checked manually by the project owner in the isolated sandbox.
+The latest validated suite contains 129 tests. Browser journey specifications are in `tests/e2e`; the most recent workflow was also checked manually by the project owner in the isolated sandbox.
 
 ## Configuration and deployment
 
@@ -50,4 +50,17 @@ Test payments use a separate site, database, storage and Stripe Sandbox. Never s
 
 ## Media delivery limits
 
-Original files: 25 MB each. Previews: 10 MB each. Photo previews are generated at a maximum 1600-pixel edge. Video watermarking currently requires a prepared preview. Screenshots cannot be reliably prevented; watermarking protects the preview while originals remain inaccessible until the verified balance payment.
+Large delivery originals, prepared previews and public media support resumable 16 MiB multipart uploads, up to 100 GiB per file. Pending sessions expire after 24 hours; reselect the same unchanged file to resume. Completed uploads remain stored. The existing automatic photo form retains its 25 MB original / 10 MB preview limits and generates previews at a maximum 1600-pixel edge.
+
+Automatic video previews are implemented through Cloudflare Stream but require separate account configuration. Originals up to 30 GB can be copied into Stream with a required watermark profile and signed playback; larger originals need a separately prepared watermarked preview. No Stream subscription is activated by deploying the code. Portfolio videos can be uploaded as web-ready MP4/WebM files and selected separately from the cover image.
+
+Admin → Storage shows registered completed bytes and recent upload sessions. This inventory excludes incomplete multipart storage and Stream usage and is not a provider billing meter. No automatic deletion of delivered originals is enabled. Screenshots cannot be reliably prevented; watermarking protects the preview while originals remain inaccessible until the verified balance payment.
+
+
+### Automatic video service configuration
+
+Set `CLOUDFLARE_ACCOUNT_ID`, secret `CLOUDFLARE_STREAM_API_TOKEN` (account-scoped Stream edit/read permissions), and `CLOUDFLARE_STREAM_WATERMARK_UID` as runtime environment values. `NEXT_PUBLIC_SITE_URL` must be the correct HTTPS deployment origin. Use a full-frame transparent image containing repeated E-MEDIA preview text as the watermark profile, with centre placement. Confirm the provider subscription, billing and scope on the business account before activation. Test with a non-customer sample first. Never paste keys into repository files.
+
+An expiring, hashed bearer capability lets Stream fetch the private original for encoding; it is revoked when the ready preview is verified. The preview must report both the configured watermark UID and signed-URL protection before attachment. Originals remain private and retain the verified-balance download gate. Stream processing errors leave the original intact and block publication until a valid preview is attached. Browser recordings cannot be reliably blocked.
+
+Multipart validation covers exact chunk size, immutable chunk hashes, file headers/trailers, final object size, session ownership, staff roles, and exact mutation origins. File transfer responses support HTTP byte ranges for video seeking and large downloads. Real multi-gigabyte transfers and live Stream encoding still require end-to-end verification after service connection; unit tests use isolated data and mocked providers.

@@ -13,7 +13,7 @@ async function getItem(slug: string) {
   const databaseItem = await getPublishedPortfolioItem(slug);
   if (databaseItem) return { ...databaseItem, year: databaseItem.yearLabel };
   const sample = getProject(slug);
-  return sample ? { ...sample, coverMediaId: null, coverAltText: null } : null;
+  return sample ? { ...sample, coverMediaId: null, coverAltText: null, videoMediaId: null } : null;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -24,5 +24,5 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function WorkDetailPage({ params }: Props) {
   const item = await getItem((await params).slug);
   if (!item) notFound();
-  return <><PageHero eyebrow={`${item.category} · ${item.year}`} title={item.title}><p>{item.summary}</p></PageHero><section className="section"><div className="page-shell">{item.coverMediaId ? <div className="work-detail-image"><Image src={`/api/media/${item.coverMediaId}`} alt={item.coverAltText || item.title} width={1600} height={900} sizes="100vw" unoptimized /></div> : <div className="project-visual ember" aria-hidden />}<div className="detail-grid" style={{ marginTop: "3rem" }}><p className="eyebrow">Project overview</p><div><p className="detail-copy">{item.summary}</p><ButtonLink href="/book" primary>Start a project →</ButtonLink></div></div></div></section></>;
+  return <><PageHero eyebrow={`${item.category} · ${item.year}`} title={item.title}><p>{item.summary}</p></PageHero><section className="section"><div className="page-shell">{item.coverMediaId ? <div className="work-detail-image"><Image src={`/api/media/${item.coverMediaId}`} alt={item.coverAltText || item.title} width={1600} height={900} sizes="100vw" unoptimized /></div> : <div className="project-visual ember" aria-hidden />}{item.videoMediaId && <video controls preload="metadata" src={`/api/media/${item.videoMediaId}`} aria-label={item.title} style={{width:"100%",marginTop:"2rem"}}/>}<div className="detail-grid" style={{ marginTop: "3rem" }}><p className="eyebrow">Project overview</p><div><p className="detail-copy">{item.summary}</p><ButtonLink href="/book" primary>Start a project →</ButtonLink></div></div></div></section></>;
 }
